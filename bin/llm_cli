@@ -1,0 +1,123 @@
+#!/usr/bin/env node
+
+const proj_root = function(...path){ return(__dirname + "/../" + path.join("/")); } 
+
+const OpenAI = require('openai');
+const config = require(proj_root("config.js"));
+
+function out(...str){
+   process.stdout.write(str.join(""));
+}
+
+function line(...str){
+   str.push("\n")
+   process.stdout.write(str.join(""));
+}
+
+
+const fatal = function(...str){
+   const err = new Error(str.join(""));
+   err.code = "fatal";
+   throw(err);
+};
+
+// defaults to process.env["OPENAI_API_KEY"]
+const openai = new OpenAI({
+   apiKey: config.open_ai.api.key || fatal("missing open_ai api key.")
+});
+
+// const _model = 'gpt-3.5-turbo';
+const _model = 'gpt-4';
+
+async function test(prompt){
+   const chatCompletion = await openai.chat.completions.create({
+      model: _model,
+      messages: [{ role: 'user', content: prompt }],
+   });
+
+   console.log(chatCompletion.choices);
+}
+
+async function stream(prompt){
+   const stream = await openai.chat.completions.create({
+      model: _model,
+      messages: [{ role: 'user', content: prompt }],
+      stream: true,
+   });
+
+   let response = "";
+   for await (const part of stream) {
+      const diff = part.choices[0]?.delta?.content || ''
+      response += diff;
+      out(diff);
+   }
+   return(response);
+}
+
+// TODO: use dry.baseline _.os.copy once it's implemented;
+
+function pbcopy(data) {
+   var proc = require('child_process').spawn('pbcopy'); 
+   proc.stdin.write(data); proc.stdin.end();
+}
+
+const _helpers = { 
+   "fun": function(prompt){
+      return[
+         "you're a very talanted engineer.",
+         "excluding all comentary and explanation write a javascript function that",
+         prompt
+      ].join(" ");
+   }
+}
+
+async function do_llm(prompt){
+   const start = Date.now();
+   line("prompt: ", prompt);
+   line("");
+   // line("response: " );
+   const response = await stream(prompt);
+   pbcopy(response);
+   line("");
+   line("");
+   line("took: ", Date.now() - start, "ms");
+   line("(response was copied to the cliboard)");
+
+}
+
+function handle_option(option, prompt){
+   const str_helpers = "[ " + Object.keys(_helpers).join(", ") + " ]";
+
+   if(option === "help"){
+      line("usage: llm_cli [--<helper_name>] <prompt>");
+      line("helpers: ", str_helpers);
+      process.exit(1);
+   }
+
+   if(_helpers[option]){
+      return _helpers[option](prompt);
+   }else{
+      fatal("unknown helper: ", option, " need one of: ", str_helpers);
+   }
+}
+
+// llm_cli | tee >(pbcopy)
+(async function(){
+   const argv = process.argv.slice(2);
+
+   let option = argv[0];
+
+   let prompt;
+
+   if(option.substr(0, 2) === "--"){
+      option = option.slice(2);
+      prompt = argv.slice(1).join(" ");
+      prompt = handle_option(option, prompt);
+   }else{
+      prompt = argv.join(" ");
+   }
+
+   await do_llm(prompt);
+
+})();
+
