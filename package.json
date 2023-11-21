@@ -1,6 +1,7 @@
 {
    "name": "llm_cli",
    "dependencies": {
-      "openai": "^4.12.1"
+      "openai": "^4.12.1",
+      "tiktoken": "^1.0.10"
    }
 }

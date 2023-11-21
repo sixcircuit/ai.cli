@@ -2,57 +2,20 @@
 
 const proj_root = function(...path){ return(__dirname + "/../" + path.join("/")); } 
 
-const OpenAI = require('openai');
 const config = require(proj_root("config.js"));
 
-function out(...str){
-   process.stdout.write(str.join(""));
-}
+const _ = require('../lib/_.js');
 
-function line(...str){
-   str.push("\n")
-   process.stdout.write(str.join(""));
-}
+const _context_warning_limit = -1;
+// const _context_warning_limit = 8192;
 
+const _models = require("../lib/models.js");
+const _helpers = require("../lib/helpers.js");
 
-const fatal = function(...str){
-   const err = new Error(str.join(""));
-   err.code = "fatal";
-   throw(err);
-};
-
-// defaults to process.env["OPENAI_API_KEY"]
-const openai = new OpenAI({
-   apiKey: config.open_ai.api.key || fatal("missing open_ai api key.")
-});
-
+let _model = null; 
+// const _model = 'gpt-4';
 // const _model = 'gpt-3.5-turbo';
-const _model = 'gpt-4';
 
-async function test(prompt){
-   const chatCompletion = await openai.chat.completions.create({
-      model: _model,
-      messages: [{ role: 'user', content: prompt }],
-   });
-
-   console.log(chatCompletion.choices);
-}
-
-async function stream(prompt){
-   const stream = await openai.chat.completions.create({
-      model: _model,
-      messages: [{ role: 'user', content: prompt }],
-      stream: true,
-   });
-
-   let response = "";
-   for await (const part of stream) {
-      const diff = part.choices[0]?.delta?.content || ''
-      response += diff;
-      out(diff);
-   }
-   return(response);
-}
 
 // TODO: use dry.baseline _.os.copy once it's implemented;
 
@@ -61,63 +24,135 @@ function pbcopy(data) {
    proc.stdin.write(data); proc.stdin.end();
 }
 
-const _helpers = { 
-   "fun": function(prompt){
-      return[
-         "you're a very talanted engineer.",
-         "excluding all comentary and explanation write a javascript function that",
-         prompt
-      ].join(" ");
+const _colors = {
+   "system": 178,
+   "user": 166,
+   "warning": 196
+}
+
+function warn_about_context_window(input_token_count){
+   if(_model.context_window < _context_warning_limit){ return; }
+
+   const model_total = _model.context_window;
+
+   const model_limit = (model_total / 4);
+
+   if(model_total >= 128_000){ model_limit = 8_192; }
+
+   if(input_token_count > model_limit){
+      const warning = `warning: input token count (${input_token_count}) exceeds model warning limit (${model_limit}) of total model context length (${model_total}). the model may lose track of facts in the middle of the window.`;
+      _.line("");
+      _.line(_.color_256(_colors.warning, warning))
+      _.line("");
    }
 }
 
-async function do_llm(prompt){
+async function do_llm(messages){
    const start = Date.now();
-   line("prompt: ", prompt);
-   line("");
-   // line("response: " );
-   const response = await stream(prompt);
-   pbcopy(response);
-   line("");
-   line("");
-   line("took: ", Date.now() - start, "ms");
-   line("(response was copied to the cliboard)");
+   _.line("");
+
+   let input = "";
+   const chat = messages.map(function(v){
+      input += v.content;
+      return(_.color_256(_colors[v.role], v.role + ": ") + v.content);
+   }).join("\n\n");
+
+   input_token_count = to_tokens(input).length;
+
+   warn_about_context_window(input_token_count);
+
+   _.out(chat);
+
+   _.line("");
+   _.line("");
+
+   const { output: content } = await stream({ messages });
+
+   pbcopy(output);
+
+   _.line("");
+   _.line("");
+   _.line("model version : ", model.version);
+   _.line("input tokens  : ", to_kb(input_token_count).padStart(10, " "));
+   _.line("output tokens : ", to_kb(to_tokens(output).length).padStart(10, " "));
+   _.line("took          : ", ((Date.now() - start) + "ms").padStart(10, " "));
+   _.line("");
+   _.line("(response was copied to the cliboard)");
 
 }
 
-function handle_option(option, prompt){
-   const str_helpers = "[ " + Object.keys(_helpers).join(", ") + " ]";
+function handle_options(argv){
 
-   if(option === "help"){
-      line("usage: llm_cli [--<helper_name>] <prompt>");
-      line("helpers: ", str_helpers);
-      process.exit(1);
-   }
-
-   if(_helpers[option]){
-      return _helpers[option](prompt);
-   }else{
-      fatal("unknown helper: ", option, " need one of: ", str_helpers);
-   }
-}
-
-// llm_cli | tee >(pbcopy)
-(async function(){
-   const argv = process.argv.slice(2);
-
+   let helper = _helpers["default"];
+   let model = argv.shift();
    let option = argv[0];
-
    let prompt;
+
+   if(model === "--gpt-3.5-turbo"){ model = "gpt-3.5-turbo" }
+   else if(model === "--gpt-4"){ model = "gpt-4" }
+   else if(model === "---4"){ model = "gpt-4" }
+   else{ 
+      _.line(`--model argument must be in [ "gpt-3.5-turbo", "gpt-4" ]`) 
+      help();
+   }
+
+   const info = _models[model] || _.fatal("model does not exist in list.");
+
+   _model = Object.assign({ name: model,  }, info); 
+
+   if(option === "--help" || argv.length === 0){ return help(); }
 
    if(option.substr(0, 2) === "--"){
       option = option.slice(2);
       prompt = argv.slice(1).join(" ");
-      prompt = handle_option(option, prompt);
+      helper = _helpers[option];
    }else{
       prompt = argv.join(" ");
+      option = null;
    }
 
-   await do_llm(prompt);
+   if(!helper){ _.fatal("unknown helper: ", option, " need one of: ", str_helpers); }
+
+   return({ helper, prompt, option });
+}
+
+function help(){
+   const str_helpers = "[ " + Object.keys(_helpers).join(", ") + " ]";
+
+   _.line("usage: llm <--<model> | --cont> [--<helper_name>] <prompt>");
+   _.line("models: ", `[ "gpt-3.5-turbo", "gpt-4" ]`);
+   _.line("helpers: ", str_helpers);
+   process.exit(1);
+}
+
+function token_test(){
+   const gpt4 = _models.get("gpt-4");
+
+   const str = "hello world";
+
+   _.line("str: ", str);
+   const tokens = gpt4.to_tokens(str);
+   _.line("tokens: ", JSON.stringify(tokens));
+   _.line("tokens.length: ", tokens.length);
+   const dec = gpt4.from_tokens(tokens);
+   _.line("str.dec: ", dec);
+   _.line("str.rt: ", JSON.stringify(dec));
+
+   if(gpt4.from_tokens(gpt4.to_tokens(str)) !== str){ throw(new Error("failed assertion")); }
+}
+
+// llm_cli | tee >(pbcopy)
+(async function(){
+
+   return token_test();
+
+   const argv = process.argv.slice(2);
+
+   const { option, helper, prompt } = handle_options(argv);
+
+   const messages = helper(prompt);
+
+   await do_llm(messages);
 
 })();
 
