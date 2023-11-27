@@ -61,16 +61,16 @@ async function do_llm({ model, messages }){
    _.line("");
 
    const n_gutter = 8; // system: == 8 chars
+   const n_wrap = 80; 
 
    const chat = messages.map(function(v){
       const label = (v.role + ":");
 
       const wrapper = _.text_wrapper({
+         n_wrap,
          n_gutter,
-         n_leading: label.length,
          // n_gutter: (label.length + 1),
-         // n_wrap: 13
-         n_wrap: n_gutter+1
+         n_leading: label.length,
       });
 
       const content = wrapper.once({ chunk: v.content });
@@ -93,15 +93,15 @@ async function do_llm({ model, messages }){
    _.out(_.color_256(_colors["model"],  model_label));
 
    const wrapper = _.text_wrapper({
+      n_wrap,
       n_gutter,
       // n_gutter: (model_label.length + 1) 
       n_leading: model_label.length,
    });
 
-   return;
-      
    const { content: output } = await openai.stream({ model, messages, out_f: function(chunk){
-      _.out(wrapper.stream({ chunk }));
+      _.out(chunk + "|");
+      // _.out(wrapper.stream({ chunk }));
    }});
 
    pbcopy(output);
