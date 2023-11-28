@@ -26,7 +26,10 @@ it has two dependencies: the openai api and tiktoken.
 - `llm <model | alias | "cont"> [<helper_name> [prompt]]`
 
 you can run the command without a helper name and a prompt.
-if you run the command without a prompt it will open your editor. it's much easier to edit a big prompt in the editor and include code.
+if you run the command without a prompt it will open your editor. 
+if you include a helper but no prompt you'll see the helper prompts (commented out) in the editor too
+it works kinda like `git commit` if you don't provide a message
+it's much easier to edit a big prompt in the editor especially if you're include code.
 
 ### examples:
 - `llm 4 d say hello`
