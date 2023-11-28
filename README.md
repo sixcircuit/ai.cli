@@ -44,7 +44,7 @@ note: if you get errors about access or rate limits, make sure you have API bill
 1. store history and allow continuation of previous prompts
 2. support other llms with llama.cpp
 
-# license
+### license
 
 Feel free to use and hack on this program. You can't use the lib/_.js code in any other project -- it's a fragment of some proprietary code I license to people.
 
