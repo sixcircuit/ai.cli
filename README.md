@@ -1,6 +1,6 @@
 # llm client
 
-### this is a simple terminal program to connect to the openai api and get (gpt-3.5 gpt-4 gpt-x) responses.
+#### this is a simple terminal program to connect to the openai api and get (gpt-3.5 gpt-4 gpt-x) responses.
 
 - it contains a framework for creating simple prompt helpers.
 - it streams the responses (in a nice format).
