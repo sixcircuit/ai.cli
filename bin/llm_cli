@@ -16,13 +16,9 @@ const _context_warning_limit = -1;
 const _models = require("../lib/models.js");
 const _helpers = require("../lib/helpers.js");
 const { warn } = require('console');
+const { wrap } = require('module');
 
 // TODO: use dry.baseline _.os.copy once it's implemented;
-
-function pbcopy(data) {
-   var proc = require('child_process').spawn('pbcopy'); 
-   proc.stdin.write(data); proc.stdin.end();
-}
 
 const _colors = {
    "system": 178,
@@ -60,7 +56,9 @@ async function do_llm({ model, messages }){
 
    _.line("");
 
-   const n_gutter = 8; // system: == 8 chars
+   const model_label = (model.short_name + ":");
+
+   const n_gutter = _.max("system:".length, model_label.length) + 1;
    const n_wrap = 80; 
 
    const chat = messages.map(function(v){
@@ -88,8 +86,6 @@ async function do_llm({ model, messages }){
    _.line("");
    _.line("");
 
-   const model_label = (model.short_name + ":");
-
    _.out(_.color_256(_colors["model"],  model_label));
 
    const wrapper = _.text_wrapper({
@@ -99,12 +95,23 @@ async function do_llm({ model, messages }){
       n_leading: model_label.length,
    });
 
+   const chunks = [];
+
    const { content: output } = await openai.stream({ model, messages, out_f: function(chunk){
-      _.out(chunk + "|");
-      // _.out(wrapper.stream({ chunk }));
+      chunks.push(chunk);
+      // _.out(chunk + "|");
+      _.out(wrapper.stream({ chunk }));
    }});
 
-   pbcopy(output);
+   _.out(wrapper.flush());
+
+   // _.pbcopy(JSON.stringify(chunks, null, 3));
+   // _.line();
+   // _.line();
+   // _.line("chunks copied to clipboard");
+
+   // TODO: enable this.
+   _.pbcopy(output);
 
    const price_in = model.price.messages_in(messages);
    const price_out = model.price.text_out(output);
