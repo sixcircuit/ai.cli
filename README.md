@@ -21,7 +21,7 @@ it has two dependencies: the openai api and tiktoken.
 5. optionally configure a helper file. copy helper.example.js somewhere and update the helper path in config.js
 5. run `./bin/llm gpt-3.5-turbo none "recite to be or not to be from hamlet."`
 
-usage: llm <model> | <model alias> | "cont" [<helper_name> [prompt]]
+`usage: llm <model> | <model alias> | "cont" [<helper_name> [prompt]]`
 
 run `llm help` to see the various models, aliases and helpers supported.
 
