@@ -12,7 +12,7 @@ i may update it in the future. it does what I need it to do right now.
 
 it has two dependencies: the openai api and tiktoken.
 
-# to install
+### to install
 
 1. clone this repo
 2. run npm install
@@ -21,23 +21,24 @@ it has two dependencies: the openai api and tiktoken.
 5. optionally configure a helper file. copy helper.example.js somewhere and update the helper path in config.js
 5. run `./bin/llm gpt-3.5-turbo none "recite to be or not to be from hamlet."`
 
-`usage: llm <model> | <model alias> | "cont" [<helper_name> [prompt]]`
+
+### usage:
+- `llm <model | alias | "cont"> [<helper_name> [prompt]]`
+
+you can run the command without a helper name and a prompt.
+if you run the command without a prompt it will open your editor. it's much easier to edit a big prompt in the editor and include code.
+
+### examples:
+- `llm 4 d say hello`
+- `llm gpt-3.5-turbo none "recite to be or not to be from hamlet."`
+- `etc...`
 
 run `llm help` to see the various models, aliases and helpers supported.
 
 note: if you get errors about access or rate limits, make sure you have API billing enabled. 
 it's separate from the chat account billing. it should live here: https://platform.openai.com/account/billing/overview
 
-if you run the command without a prompt it will open your editor. it's way easier to edit a big prompt in the editor and include code.
-
-# examples
-
-`llm 4 d say hello`
-`llm gpt-3.5-turbo none "recite to be or not to be from hamlet."`
-
-etc...
-
-# todo
+### todo
 1. store history and allow continuation of previous prompts
 2. support other llms with llama.cpp
 
