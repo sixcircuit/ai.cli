@@ -15,7 +15,7 @@ it has two dependencies: the openai api and tiktoken.
 ### to install
 
 1. clone this repo
-2. run npm install
+2. run `npm install`
 3. copy ./config.example.js to ./config.js
 4. add your openai api key to config.js 
 5. optionally configure a helper file. copy helper.example.js somewhere and update the helper path in config.js
@@ -31,15 +31,14 @@ if you include a helper but no prompt you'll see the helper prompts (commented o
 it works kinda like `git commit` if you don't provide a message
 it's much easier to edit a big prompt in the editor especially if you're include code.
 
+run `llm help` to see the various models, aliases and helpers supported.
+
+note: if you get errors about access or rate limits, make sure you have API billing enabled. it's separate from the chat account billing. it should live here: https://platform.openai.com/account/billing/overview
+
 ### examples:
 - `llm 4 d say hello`
 - `llm gpt-3.5-turbo none "recite to be or not to be from hamlet."`
 - `etc...`
-
-run `llm help` to see the various models, aliases and helpers supported.
-
-note: if you get errors about access or rate limits, make sure you have API billing enabled. 
-it's separate from the chat account billing. it should live here: https://platform.openai.com/account/billing/overview
 
 ### todo
 1. store history and allow continuation of previous prompts
