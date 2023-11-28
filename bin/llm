@@ -14,7 +14,7 @@ const _context_warning_limit = -1;
 // const _context_warning_limit = 8192;
 
 const _models = require("../lib/models.js");
-const _helpers = require("../lib/helpers.js");
+const _helpers = require("../lib/helpers.js")(config.helpers);
 const { warn } = require('console');
 const { wrap } = require('module');
 
@@ -51,7 +51,7 @@ function dollars(n){
    }
 }
 
-async function do_llm({ model, messages }){
+async function do_llm({ model, messages, request }){
    const start = Date.now();
 
    _.line("");
@@ -97,21 +97,13 @@ async function do_llm({ model, messages }){
 
    const chunks = [];
 
-   const { content: output } = await openai.stream({ model, messages, out_f: function(chunk){
+   const { content: output } = await openai.stream({ model, messages, request, out_f: function(chunk){
       chunks.push(chunk);
       // _.out(chunk + "|");
       _.out(wrapper.stream({ chunk }));
    }});
 
    _.out(wrapper.flush());
-
-   // _.pbcopy(JSON.stringify(chunks, null, 3));
-   // _.line();
-   // _.line();
-   // _.line("chunks copied to clipboard");
-
-   // TODO: enable this.
-   _.pbcopy(output);
 
    const price_in = model.price.messages_in(messages);
    const price_out = model.price.text_out(output);
@@ -142,8 +134,11 @@ async function do_llm({ model, messages }){
    });
 
    _.line("");
-   _.line("(response was copied to the cliboard)");
 
+   _.pbcopy(output, function(err){
+      if(err){ _.line("(error copying to clipboard. you're probably on a platform without pbcopy. feel free to open a pull request to support your platform.)"); }
+      else{ _.line("(response was copied to the cliboard)"); }
+   });
 }
 
 function help(no_exit){
@@ -151,7 +146,7 @@ function help(no_exit){
    _.line("usage: llm <model | alias | cont> [<helper_name> [prompt]]");
    _.line("aliases: ", pretty_obj(_models.help().aliases));
    _.line("models: ", pretty_obj(_models.help().models));
-   _.line("helpers: ", to_help_keys(_helpers));
+   _.line("helpers: ", _helpers.help());
 
    if(no_exit){ return; }
 
@@ -160,7 +155,7 @@ function help(no_exit){
 
 async function handle_options(argv){
 
-   let helper = _helpers["default"];
+   let helper = _helpers.get("default");
    let model_name = argv.shift();
    let prompt = "";
 
@@ -177,7 +172,7 @@ async function handle_options(argv){
    
    if(argv.length){
       const helper_name = argv.shift();
-      helper = _helpers[helper_name];
+      helper = _helpers.get(helper_name);
       prompt = argv.join(" ").trim();
       if(!helper){ 
          _.line(`unknown helper "`, helper_name, `": need one in the list below.`);
@@ -188,10 +183,11 @@ async function handle_options(argv){
    if(!prompt){ prompt = await get_prompt(_helpers.to_editor_text(helper)); }
 
    let messages = null;
+   let request = null;
 
-   if(prompt){ messages = helper(prompt); }
+   if(prompt){ ({ messages, request } = helper(prompt)); }
 
-   return({ model, messages });
+   return({ model, messages, request });
 }
 
 async function get_prompt(initial_text){
@@ -243,7 +239,6 @@ async function get_prompt(initial_text){
 }
 
 function pretty_obj(obj){ return JSON.stringify(obj, null, 3); }
-function to_help_keys(obj){ return(pretty_obj(Object.keys(obj))); }
 
 function round_trip_test({ model, text }){
    
@@ -278,13 +273,13 @@ function debug({ model, messages }){
 
    const argv = process.argv.slice(2);
 
-   const { model, messages } = await handle_options(argv);
+   const { model, messages, request } = await handle_options(argv);
 
    if(!messages){ return _.line("empty prompt. canceling."); }
 
    // return debug({ model, messages });
 
-   await do_llm({ model, messages });
+   await do_llm({ model, messages, request });
 
 })();
 
