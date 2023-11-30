@@ -1,0 +1,12 @@
+
+
+- make a model base with .stream(messages) (include vision messages and check for vision: true)
+- keep refactoring. have a result.stats() or something. or ai.stats(). 
+   ! HAVE THE RESULT OF plugin.run() return a stats object you iterate and print out.
+      - { 
+         tokens.
+         took. 
+         price. 
+         clipboard (ignore this one, just copy it and notify the user!) 
+      }
+- make a place to store images.
