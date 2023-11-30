@@ -1,4 +1,4 @@
-# llm client
+# ai client
 
 #### this is a simple terminal program to connect to the openai api and get (gpt-3.5 gpt-4 gpt-x) responses.
 
@@ -7,8 +7,12 @@
 - it copies the response to the system clipboard (on macos)
 - it also prints some stats about how much the request cost, how many tokens it was, and how long it took.
 
-i may update it in the future. it does what I need it to do right now. 
+### but i'm lying. but i'm lying. it's something way more powerful. 
+#### it's a terminal program that abstracts a bunch of ai models and supports a plugin framework.
+#### it just ships with an LLM plugin by default.
+#### it's great for rapid prototyping AI ideas.
 
+i may update it in the future. it does what I need it to do right now. 
 
 it has two dependencies: the openai api and tiktoken.
 

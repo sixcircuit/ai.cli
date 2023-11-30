@@ -1,5 +1,20 @@
-module.exports = function(lib){
-   const helpers = lib.helpers();
+
+const add_plugin = function({ ai }){
+
+   const plugins = {};
+
+   plugins.say_hello = function(){
+      const console = ai.console();
+      console.label("user: ");
+      console.stream({ chunk: "say hello!" });
+   }
+
+   ai.register(plugins);
+};
+
+const llm_helpers = function({ ai }){
+
+   const helpers = ai.plugins("llm").helpers();
 
    helpers.vim = function(prompt){
       return lib.system({
@@ -20,4 +35,11 @@ module.exports = function(lib){
          ]
       });
    };
+
+}
+
+module.exports = function({ ai }){
+   add_plugin({ ai });
+   llm_helpers({ ai });
 };
+
