@@ -1,6 +1,13 @@
 
 const llm = { name: "llm" };
 
+llm.helpers = function(){
+   // STUB
+   return({
+      add: function(){}
+   });
+}
+
 llm.run = async function(){
 
 }
@@ -15,7 +22,7 @@ llm.help = function(no_exit){
 
    if(no_exit){ return; }
 
-   process.exit(1); 
+   process.exit(1);
 };
 
 

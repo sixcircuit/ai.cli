@@ -2,7 +2,7 @@
 
 const _ = require("../lib/_.js");
 
-const proj_root = function(...path){ return(__dirname + "/../" + path.join("/")); } 
+const proj_root = function(...path){ return(__dirname + "/../" + path.join("/")); }
 
 const config = _.merge(require(proj_root("config.js")));
 
@@ -10,18 +10,12 @@ config.plugins.unshift(proj_root("./builtin/llm.js"));
 
 const ai = require("../lib/ai.js")(config);
 
-const fs = require('fs');
-const { spawn } = require('child_process');
-
-
 const openai = require("../lib/openai.js")(config.openai);
 
 const _context_warning_limit = -1;
 // const _context_warning_limit = 8192;
 
 const _helpers = require("../lib/helpers.js")(config.helpers);
-const { warn } = require('console');
-const { wrap } = require('module');
 
 // TODO: use dry.baseline _.os.copy once it's implemented;
 
@@ -58,7 +52,7 @@ async function do_llm({ model, messages, request }){
    const model_label = (model.short_name + ":");
 
    const n_gutter = _.max("system:".length, model_label.length) + 1;
-   const n_wrap = 80; 
+   const n_wrap = 80;
 
    const chat = messages.map(function(v){
       const label = (v.role + ":");
@@ -80,17 +74,17 @@ async function do_llm({ model, messages, request }){
 
    warn_about_context_window({ model, token_count: input_token_count });
 
-   _.out(chat);
+   _.stdout.write(chat);
 
    _.line("");
    _.line("");
 
-   _.out(_.color_256(_colors["model"],  model_label));
+   _.stdout.write(_.color_256(_colors["model"],  model_label));
 
    const wrapper = _.text_wrapper({
       n_wrap,
       n_gutter,
-      // n_gutter: (model_label.length + 1) 
+      // n_gutter: (model_label.length + 1)
       n_leading: model_label.length,
    });
 
@@ -98,11 +92,11 @@ async function do_llm({ model, messages, request }){
 
    const { content: output } = await openai.stream({ model, messages, request, out_f: function(chunk){
       chunks.push(chunk);
-      // _.out(chunk + "|");
-      _.out(wrapper.stream({ chunk }));
+      // _.stdout.write(chunk + "|");
+      _.stdout.write(wrapper.stream({ chunk }));
    }});
 
-   _.out(wrapper.flush());
+   _.stdout.write(wrapper.flush());
 
    const price_in = model.price.messages_in(messages);
    const price_out = model.price.text_out(output);
@@ -128,7 +122,7 @@ async function do_llm({ model, messages, request }){
       max_value = Math.max((v+"").length, max_value);
    });
 
-   _.each.s(table, function(v, k){ 
+   _.each.s(table, function(v, k){
       _.line(k.padEnd(max_label) + " : ", (v + "").padStart(max_value));
    });
 
@@ -151,18 +145,18 @@ async function handle_options(argv){
 
    if(model_name === "cont"){ _.fatal("cont not implemented"); }
 
-   const model = _models.get(model_name);
+   const model = ai.models().get(model_name);
 
    if(!model){
       _.line("unknown model type: ", model_name, " you must pick a model or alias in the list below.");
       return help();
    }
-   
+
    if(argv.length){
       const helper_name = argv.shift();
       helper = _helpers.get(helper_name);
       prompt = argv.join(" ").trim();
-      if(!helper){ 
+      if(!helper){
          _.line(`unknown helper "`, helper_name, `": need one in the list below.`);
          return help();
       }
@@ -182,7 +176,7 @@ async function handle_options(argv){
 function pretty_obj(obj){ return JSON.stringify(obj, null, 3); }
 
 function round_trip_test({ model, text }){
-   
+
    const tokens = model.to_tokens(text);
    const decode = model.from_tokens(tokens);
 
@@ -210,11 +204,14 @@ function debug({ model, messages }){
 // llm_cli | tee >(pbcopy)
 (async function(){
 
-   // return round_trip_test({ model: _models.get("gpt-4"), text: "this is a test message." });
+   const args = process.argv.slice(2);
 
-   const argv = process.argv.slice(2);
+   return await ai.run(args);
 
-   const { model, messages, request } = await handle_options(argv);
+   // return round_trip_test({ model: ai.models().get("gpt-4"), text: "this is a test message." });
+
+
+   const { model, messages, request } = await handle_options(args);
 
    if(!messages){ return _.line("empty prompt. canceling."); }
 
