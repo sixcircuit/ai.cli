@@ -1,6 +1,6 @@
 #!/bin/bash
 this_dir=$(dirname $(perl -MCwd -e 'print Cwd::abs_path shift' -- "${BASH_SOURCE[0]}"))
-echo $this_dir/ai llm $@
+# echo $this_dir/ai llm $@
 $this_dir/ai llm $@
 
 # "$this_dir/ai" llm $@

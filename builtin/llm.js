@@ -11,46 +11,32 @@ module.exports = function({ _, ai, config }){
    llm.convo = function(opts){ return _convo(opts); };
    llm.helpers = function(){ return(_helpers); }
 
-   async function do_llm({ model, input, request }){
-      const start = Date.now();
+   async function stream_output({ colors, input, model }){
+      colors = colors || { role: "assistant" };
+      // colors = colors || { role: "assistant", message: "assistant" };
 
-      _.print("");
+      _console.turn({ color: colors.role, label: model.label() });
 
-      const model_label = (model.name() + ": ");
-      const gutter = _.max("system: ".length, model_label.length);
-
-      _.print("gutter: ", gutter);
-
-      _console.reset({ wrap: 80, gutter });
-
-      const input_stats = input.tokenize();
-
-      model.warn_about_context_window({ token_length: input_stats.token_length });
-
-      _.each.s(input.messages(), function(m){
-         _console.turn({ role: m.role });
-         // _console.once({ color: m.role, chunk: m.content });
-         // _console.flush({ color: m.role, chunk: m.content });
-         _console.flush({ chunk: m.content });
-      });
-
-      _.stdout("");
-
-      _console.turn({ color: "assistant", label: model_label });
-
-      const { output, response } = await model.stream({ input, on_data: function({ chunk }){
-         // _console.stream({ color: "assistant", chunk });
-         _console.stream({ chunk });
+      const result = await model.stream({ input, on_data: function({ chunk }){
+         _console.stream({ color: colors.message, chunk });
       }});
 
-      _console.flush({ new_line: true });
+      _console.flush({ color: colors.message, new_line: true });
 
+      return(result);
+   }
+
+   function show_stats({ start, end, input, output, model }){
+
+      const input_stats = input.tokenize();
       const output_stats = output.tokenize();
+
+      model.warn_about_context_window({ token_length: input_stats.token_length });
 
       _.stdout("");
 
       const table = {
-         "took": ((Date.now() - start) + "ms"),
+         "took": ((end - start) + "ms"),
          "tokens (input)": _.to_k(input_stats.token_length),
          "tokens (output)": _.to_k(output_stats.token_length),
          "price (input)": _.format.dollars(input_stats.price_in),
@@ -61,14 +47,34 @@ module.exports = function({ _, ai, config }){
 
       _.stdout(_.format.obj_table(table));
 
-      _.print("");
+      _.stdout("");
+   }
 
-      // TODO: use dry.baseline _.os.copy once it's implemented;
+   function print_input({ input }){
+      _.each.s(input.messages(), function(m){
+         _console.turn({ role: m.role });
+         // _console.flush({ color: m.role, chunk: m.content });
+         _console.flush({ chunk: m.content });
+      });
+   }
+
+
+   async function do_llm({ model, input, request }){
+      const start = Date.now();
+
+      _console.reset({ wrap: 80, labels: ["user: ", "system: ", model.label()], padding: 1, right: true });
+
+      print_input({ input });
+
+      const { output } = await stream_output({ input, model });
+
+      const end = Date.now();
+
+      show_stats({ start, end, input, output, model });
 
       // llm_cli | tee >(pbcopy)
 
-      console.dir(response);
-
+      // TODO: use dry.baseline _.os.copy once it's implemented;
       _.pbcopy(output.$format("text"), function(err){
          if(err){ _.print("(error copying to clipboard. you're probably on a platform without pbcopy. feel free to open a pull request to support your platform.)"); }
          else{ _.print("(response was copied to the cliboard)"); }
