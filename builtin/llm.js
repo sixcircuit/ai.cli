@@ -26,28 +26,63 @@ module.exports = function({ _, ai, config }){
       return(result);
    }
 
-   function show_stats({ start, end, input, output, model }){
+   function show_stats({ stats }){
+
+      const table = {
+         "took": (stats.took + "ms"),
+         "tokens (input)": _.to_k(stats.input.token_length),
+         "tokens (output)": _.to_k(stats.output.token_length),
+         "price (input)": _.format.dollars(stats.input.price),
+         "price (output)": _.format.dollars(stats.output.price),
+         "price (total)": _.format.dollars(stats.price),
+         "model (series)": stats.model.series,
+         "model (version)": stats.model.version,
+      };
+
+      const chunk = _.format.obj_table(table);
+
+      _console.turn({ role: "stats" });
+      _console.flush({ chunk, new_line: true });
+   }
+
+   function make_stats({ start, end, input, output, model }){
 
       const input_stats = input.tokenize();
       const output_stats = output.tokenize();
 
-      model.warn_about_context_window({ token_length: input_stats.token_length });
+      function _stat(s, io){
+         return({
+            price: s["price_" + io],
+            token_length: s.token_length
+         });
+      }
 
-      _.stdout("");
-
-      const table = {
-         "took": ((end - start) + "ms"),
-         "tokens (input)": _.to_k(input_stats.token_length),
-         "tokens (output)": _.to_k(output_stats.token_length),
-         "price (input)": _.format.dollars(input_stats.price_in),
-         "price (output)": _.format.dollars(output_stats.price_out),
-         "price (total)": _.format.dollars(input_stats.price_in + output_stats.price_out),
-         "model (series)": model.series(),
+      const stats = {
+         took: (end - start),
+         input: _stat(input_stats, "in"),
+         output: _stat(output_stats, "out"),
+         price: (input_stats.price_in + output_stats.price_out),
+         model: { version: model.version(), series: model.series() }
       };
 
-      _.stdout(_.format.obj_table(table));
+      return(stats);
+   }
 
-      _.stdout("");
+   function show_warnings({ stats, model }){
+      const warnings = model.get_warnings({ stats });
+
+      if(!warnings.length){ return; }
+
+      _console.ensure_new_line();
+      _console.new_line();
+
+      const color = "warning";
+
+      _.each.s(warnings, function(w){
+         _console.turn({ color, label: "warn: " });
+         _console.flush({ color, chunk: w, new_line: true });
+      });
+      _console.new_line();
    }
 
    function print_input({ input }){
@@ -56,8 +91,26 @@ module.exports = function({ _, ai, config }){
          // _console.flush({ color: m.role, chunk: m.content });
          _console.flush({ chunk: m.content });
       });
+      _console.ensure_new_line();
    }
 
+   async function copy_to_clipboard({ output }){
+      // llm_cli | tee >(pbcopy)
+
+      // TODO: use dry.baseline _.os.copy once it's implemented;
+      try{
+         await _.pbcopy(output.$format("text"));
+         _console.turn({ role: "info" });
+         _console.flush({ chunk: "(response was copied to the clipboard)", new_line: true });
+      }catch(err){
+         _console.turn({ role: "error" });
+         _console.flush({ chunk: "(error copying to clipboard. you're probably on a platform without pbcopy. feel free to open a pull request to support your platform.)", new_line: true });
+      }
+   }
+
+   function save_history({ input, output, stats, model }){
+
+   }
 
    async function do_llm({ model, input, request }){
       const start = Date.now();
@@ -66,19 +119,27 @@ module.exports = function({ _, ai, config }){
 
       print_input({ input });
 
+      _console.new_line();
+
       const { output } = await stream_output({ input, model });
 
       const end = Date.now();
 
-      show_stats({ start, end, input, output, model });
+      _console.new_line();
 
-      // llm_cli | tee >(pbcopy)
+      const stats = make_stats({ start, end, input, output, model });
 
-      // TODO: use dry.baseline _.os.copy once it's implemented;
-      _.pbcopy(output.$format("text"), function(err){
-         if(err){ _.print("(error copying to clipboard. you're probably on a platform without pbcopy. feel free to open a pull request to support your platform.)"); }
-         else{ _.print("(response was copied to the cliboard)"); }
-      });
+      show_stats({ stats });
+
+      save_history({ input, output, stats, model });
+
+      await copy_to_clipboard({ output });
+
+      show_warnings({ model, stats });
+
+      _console.new_line();
+
+      _console.flush();
    }
 
    async function handle_options(argv){
