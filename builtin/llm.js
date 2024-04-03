@@ -1,120 +1,65 @@
 
 module.exports = function({ _, ai, config }){
 
+   const _convo = require("../lib/convo.js");
+   const _helpers = require("./helpers.js")();
+
+   const _console = ai.console();
+
    const llm = { name: "llm", config };
 
-   // const _helpers = require("../lib/helpers.js")(config.helpers);
+   llm.convo = function(opts){ return _convo(opts); };
+   llm.helpers = function(){ return(_helpers); }
 
-   llm.helpers = function(){
-      // STUB
-      return({
-         add: function(){}
-      });
-   }
-
-   const _context_warning_limit = -1;
-   // const _context_warning_limit = 8192;
-
-   function warn_about_context_window({ model, token_count }){
-      if(model.context_window < _context_warning_limit){ return; }
-
-      const model_total = model.context_window;
-
-      const model_limit = (model_total / 4);
-
-      if(token_count > model_limit){
-         const warning = `warning: input token count (${token_count}) exceeds model warning limit (${model_limit}) of total model context length (${model_total}). the model may lose track of facts in the middle of the window.`;
-         _.print("");
-         _.print(_.color_256(_colors.warning, warning))
-         _.print("");
-      }
-   }
-
-   async function do_llm({ model, messages, request }){
+   async function do_llm({ model, input, request }){
       const start = Date.now();
 
       _.print("");
 
-      const model_label = (model.short_name + ":");
+      const model_label = (model.name() + ": ");
+      const gutter = _.max("system: ".length, model_label.length);
 
-      const n_gutter = _.max("system:".length, model_label.length) + 1;
-      const n_wrap = 80;
+      _.print("gutter: ", gutter);
 
-      const chat = messages.map(function(v){
-         const label = (v.role + ":");
+      _console.reset({ wrap: 80, gutter });
 
-         const wrapper = _.text_wrapper({
-            n_wrap,
-            n_gutter,
-            // n_gutter: (label.length + 1),
-            n_leading: label.length,
-         });
+      const input_stats = input.tokenize();
 
-         const content = wrapper.once({ chunk: v.content });
+      model.warn_about_context_window({ token_length: input_stats.token_length });
 
-         return(_.color_256(_colors[v.role], label) + content);
-
-      }).join("\n\n");
-
-      const input_token_count = model.count_tokens_from_messages(messages);
-
-      warn_about_context_window({ model, token_count: input_token_count });
-
-      _.stdout.write(chat);
-
-      _.print("");
-      _.print("");
-
-      _.stdout.write(_.color_256(_colors["model"],  model_label));
-
-      const wrapper = _.text_wrapper({
-         n_wrap,
-         n_gutter,
-         // n_gutter: (model_label.length + 1)
-         n_leading: model_label.length,
+      _.each.s(input.messages(), function(m){
+         _console.turn({ role: m.role });
+         // _console.once({ color: m.role, chunk: m.content });
+         // _console.flush({ color: m.role, chunk: m.content });
+         _console.flush({ chunk: m.content });
       });
 
-      const chunks = [];
+      _.stdout("");
 
-      // TODO: refactor this into the model class itself.
+      _console.turn({ color: "assistant", label: model_label });
 
-      const openai = require("../lib/openai.js")(config.openai);
-
-      const { content: output } = await openai.stream({ model, messages, request, out_f: function(chunk){
-         chunks.push(chunk);
-         // _.stdout.write(chunk + "|");
-         _.stdout.write(wrapper.stream({ chunk }));
+      const { output, response } = await model.stream({ input, on_data: function({ chunk }){
+         // _console.stream({ color: "assistant", chunk });
+         _console.stream({ chunk });
       }});
 
-      _.stdout.write(wrapper.flush());
+      _console.flush({ new_line: true });
 
-      const price_in = model.price.messages_in(messages);
-      const price_out = model.price.text_out(output);
+      const output_stats = output.tokenize();
 
-      _.print("");
-      _.print("");
+      _.stdout("");
 
       const table = {
          "took": ((Date.now() - start) + "ms"),
-         "tokens (input)": _.to_k(price_in.count),
-         "tokens (output)": _.to_k(price_out.count),
-         "price (input)": _.format.dollars(price_in.price),
-         "price (output)": _.format.dollars(price_out.price),
-         "price (total)": _.format.dollars(price_in.price + price_out.price),
-         "model (version)": model.short_name,
+         "tokens (input)": _.to_k(input_stats.token_length),
+         "tokens (output)": _.to_k(output_stats.token_length),
+         "price (input)": _.format.dollars(input_stats.price_in),
+         "price (output)": _.format.dollars(output_stats.price_out),
+         "price (total)": _.format.dollars(input_stats.price_in + output_stats.price_out),
+         "model (series)": model.series(),
       };
 
-      let max_label = 0;
-      let max_value = 0;
-
-      _.each.s(table, function(v, k){
-         max_label = Math.max(k.length, max_label);
-         max_value = Math.max((v+"").length, max_value);
-      });
-
-      _.each.s(table, function(v, k){
-         _.print(k.padEnd(max_label) + " : ", (v + "").padStart(max_value));
-      });
+      _.stdout(_.format.obj_table(table));
 
       _.print("");
 
@@ -122,7 +67,9 @@ module.exports = function({ _, ai, config }){
 
       // llm_cli | tee >(pbcopy)
 
-      _.pbcopy(output, function(err){
+      console.dir(response);
+
+      _.pbcopy(output.$format("text"), function(err){
          if(err){ _.print("(error copying to clipboard. you're probably on a platform without pbcopy. feel free to open a pull request to support your platform.)"); }
          else{ _.print("(response was copied to the cliboard)"); }
       });
@@ -155,14 +102,18 @@ module.exports = function({ _, ai, config }){
          }
       }
 
-      if(!prompt){ prompt = await get_prompt(_helpers.to_editor_text(helper)); }
+      if(!prompt){
+         prompt = await ai.open_editor({ text: helper().$format("comments") });
+      }
 
-      let messages = null;
-      let request = null;
+      let input = null;
 
-      if(prompt){ ({ messages, request } = helper(prompt)); }
+      if(prompt){ input = helper().role("user", prompt); }
+      else{ input = llm.convo(); }
 
-      return({ model, messages, request });
+      input.model(model);
+
+      return({ model, input });
    }
 
 
@@ -197,20 +148,13 @@ module.exports = function({ _, ai, config }){
 
       // return round_trip_test({ model: ai.models().get("gpt-4"), text: "this is a test message." });
 
-      const { model, messages, request } = await handle_options(args);
+      const { model, input } = await handle_options(args);
 
-      if(!messages){ return _.stdout("empty prompt. canceling."); }
+      if(input.is_empty()){ return _.stdout("empty prompt. canceling."); }
 
       // return debug({ model, messages });
 
-      await do_llm({ model, messages, request });
-
-      const console = ai.console();
-
-      console.reset({ gutter: 8 });
-
-      console.turn("user", "12: "); console.stream({ chunk: "hello\nhello\nhello", flush: true, new_line: true });
-
+      await do_llm({ model, input });
    };
 
    llm.help = function(no_exit){

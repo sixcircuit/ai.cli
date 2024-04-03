@@ -11,7 +11,7 @@ const config = get_config();
 const ai = require("../lib/ai.js")(config);
 
 function get_config(){
-   const config = _.merge(require(proj_root("config.js")));
+   const config = _.merge(require(_.path.join(process.env.HOME, ".ai.js")));
 
    const builtin_root = proj_root("./builtin/");
 
