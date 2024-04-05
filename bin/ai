@@ -29,11 +29,6 @@ function get_config(){
 
    const args = process.argv.slice(2);
 
-   _.print("UPDATE ALL THE MODELS!")
-   _.print("UPDATE ALL THE MODELS!")
-   _.print("UPDATE ALL THE MODELS!")
-   _.print("figure out history and how you manage old model versions. pin = true on the history.")
-
    return await ai.run(args);
 
 })();

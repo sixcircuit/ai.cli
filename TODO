@@ -1,4 +1,33 @@
 
+= todo
+
+
+   - figure out history and how you manage old model versions. pin = true on the history.
+
+   - build rip grip and fzf to continue old interactions.
+   - save everything to a history file. json. interactions timestamps array.
+      ? build history pointers to files.
+   - you might be able to ripgrep them quickly.
+
+   x update models to new versions
+
+   = model stats
+      x max i/o cost (get output tokens)
+      x models.base() === base models, no aliases
+      - `ai models`
+
+   = _.fzf.loop = async function(parts){
+         await _.each.a([], )
+
+      }
+      await _.fzf.loop([function(){
+
+      }, function(){
+
+      }])
+      ai.run(["llm"]);
+      llm.fzf = 2; // model name + helper (just hit enter in fzf for default helper. just order them properly)
+
 - Log directory for aicli. Log/LLM/[iso_date] have a log.write
 - make a model base with .stream(messages) (include vision messages and check for vision: true)
 - keep refactoring. have a result.stats() or something. or ai.stats().
