@@ -1,8 +1,9 @@
 
 = todo
 
-
    - figure out history and how you manage old model versions. pin = true on the history.
+
+   - look into seamless meta model on hugging face. it's text to voice.
 
    - build rip grip and fzf to continue old interactions.
    - save everything to a history file. json. interactions timestamps array.
@@ -11,10 +12,10 @@
 
    x update models to new versions
 
-   = model stats
+   x model stats
       x max i/o cost (get output tokens)
       x models.base() === base models, no aliases
-      - `ai models`
+      x `ai models`
 
    = _.fzf.loop = async function(parts){
          await _.each.a([], )

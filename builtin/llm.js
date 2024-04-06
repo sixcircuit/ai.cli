@@ -8,8 +8,37 @@ module.exports = function({ _, ai, config }){
 
    const llm = { name: "llm", config };
 
+   llm.description = function(args){ return("provides a variety of text-to-text llm chatbot functionality."); };
+
    llm.convo = function(opts){ return _convo(opts); };
    llm.helpers = function(){ return(_helpers); }
+
+   llm.run = async function(args){
+
+      // return round_trip_test({ model: ai.models().get("gpt-4"), text: "this is a test message." });
+
+      const { model, input, cancel } = await handle_options(args);
+
+      if(cancel){ return; }
+
+      // return debug({ model, messages });
+
+      await do_llm({ model, input });
+   };
+
+   llm.help = function(no_exit){
+
+      _.print("usage: llm <model | alias | cont> [<helper_name> [prompt]]");
+      _.print("helpers: ", _helpers.help());
+      _.print("aliases: ", _.format.pretty_obj(ai.models().help().aliases));
+      _.print("models: ", _.format.pretty_obj(ai.models().help().models));
+      _.print("helpers: ", _helpers.help());
+
+      if(no_exit){ return; }
+
+      process.exit(1);
+   };
+
 
    async function stream_output({ colors, input, model }){
       colors = colors || { role: "assistant" };
@@ -28,43 +57,11 @@ module.exports = function({ _, ai, config }){
 
    function show_stats({ stats }){
 
-      // const table = {
-      //    // "model": stats.model.version + "\n",
-      //    // "model (series)": stats.model.series,
-      //    "tokens in": _.to_k(stats.input.token_length),
-      //    "price in": _.format.dollars(stats.input.price) + "\n",
-      //    "tokens out": _.to_k(stats.output.token_length),
-      //    "price out": _.format.dollars(stats.output.price) + "\n",
-      //    "price": _.format.dollars(stats.price) + "\n",
-      //    "took": (stats.took + "ms"),
-      // };
-
-      // const chunk = _.format.obj_table(table);
-
-      // _console.turn({ color: "stats", label: "model: " });
-      // _console.flush({ chunk: stats.model.version, new_line: true });
-
-      const token_table = _.format.obj_table({
-         // "took": (stats.took + "ms"),
-         // "model": stats.model.version,
-         // "endl_0": null,
-         "in": _.to_k(stats.input.token_length) + ` tok @ ${_.format.dollars(stats.input.price)}`,
-         "out": _.to_k(stats.output.token_length) + ` tok @ ${_.format.dollars(stats.output.price)}`,
-         "endl_1": null,
-         "total": _.to_k(stats.token_length) + ` tok @ ${ _.format.dollars(stats.price) }`,
-      });
-
       _console.label({ color: "stats", label: "took: " });
       _console.flush({ chunk: (stats.took + "ms") });
 
       _console.label({ color: "stats", label: "model: " });
       _console.flush({ chunk: stats.model.version });
-
-      // _console.label({ color: "stats", label: "tokens: " });
-      // _console.flush({ chunk: `${_.to_k(stats.input.token_length)} / ${_.to_k(stats.output.token_length)}` });
-
-      // _console.label({ color: "stats", label: "price: " });
-      // _console.flush({ chunk: `${_.format.dollars(stats.input.price)} / ${_.format.dollars(stats.output.price)}` });
 
       _console.label({ color: "stats", label: "in: " });
       _console.flush({ chunk: `${_.format.dollars(stats.input.price)} (${_.to_k(stats.input.token_length)} tokens)` });
@@ -74,21 +71,6 @@ module.exports = function({ _, ai, config }){
 
       _console.label({ color: "stats", label: "total: " });
       _console.flush({ color: null, chunk: `${_.format.dollars(stats.price)} (${_.to_k(stats.token_length)} tokens)` });
-
-      // _console.turn({ color: "stats", label: "stats: " });
-      // _console.flush({ chunk: token_table, new_line: true });
-
-      // const price_table = _.format.obj_table({
-      //    "in": ,
-      //    "out":
-      //    "total":
-      // });
-
-      // _console.turn({ color: "stats", label: "price: " });
-      // _console.flush({ chunk: price_table, new_line: true });
-
-      // _console.turn({ role: "stats" });
-      // _console.flush({ chunk, new_line: true });
    }
 
    function make_stats({ start, end, input, output, model }){
@@ -190,43 +172,66 @@ module.exports = function({ _, ai, config }){
       _console.flush();
    }
 
-   async function handle_options(argv){
+   async function get_model(model_name){
 
-      let helper = _helpers.get("default");
-      let model_name = argv.shift();
-      let prompt = "";
+      model_name = model_name || await _.fzf({ list: ai.models().list() });
 
-      if(!model_name || model_name === "help" || model_name === "--help"){ return llm.help(); }
+      if(!model_name){ return _.null( _.stderr("model selection canceled. not lemming.") ); }
 
-      if(model_name === "cont"){ _.fatal("cont not implemented"); }
+      _.stderr("model name: ", _.quote(model_name));
 
       const model = ai.models().get(model_name);
 
       if(!model){
-         _.print("unknown model type: ", model_name, " you must pick a model or alias in the list below.");
-         return llm.help();
+         _.stderr("unknown model type: ", model_name, " you must pick a model in the list below.");
+         return _.null( llm.help() );
       }
 
-      if(argv.length){
-         const helper_name = argv.shift();
-         helper = _helpers.get(helper_name);
-         prompt = argv.join(" ").trim();
-         if(!helper){
-            _.print(`unknown helper "`, helper_name, `": need one in the list below.`);
-            return llm.help();
-         }else{
-            _.print("helper: ", helper);
-         }
+      return(model);
+   }
+
+   async function get_helper(helper_name){
+
+      helper_name = helper_name || await _.fzf({ list: llm.helpers().list() });
+
+      if(!helper_name){ return _.null( _.stderr("helper selection canceled. not lemming.") ); }
+
+      const helper = llm.helpers().get(helper_name);
+
+      if(!helper){
+         _.stderr("unknown helper type: ", helper_name, " you must pick a helper in the list below.");
+         return _.null( llm.help() );
       }
+
+      return(helper);
+   }
+
+   async function handle_options(argv){
+
+      const cmd = argv.shift();
+
+      if(cmd === "help"){ return llm.help(); }
+      if(cmd === "continue"){ _.fatal("continue not implemented"); }
+
+      const model = await get_model(cmd);
+
+      if(!model){ return({ cancel: true }); }
+
+      const helper = await get_helper(argv.shift());
+      if(!helper){ return({ cancel: true }); }
+
+      let prompt;
+
+      if(argv.length){ prompt = argv.join(" ").trim(); }
+
+      if(!prompt){ prompt = await ai.open_editor({ text: helper().$format("comments") }); }
 
       if(!prompt){
-         prompt = await ai.open_editor({ text: helper().$format("comments") });
+         _.stdout("empty prompt. not lemming.");
+         return({ cancel: true });
       }
 
-      let input = null;
-
-      if(prompt){ input = helper().role("user", prompt); }
-      else{ input = llm.convo(); }
+      const input = helper().role("user", prompt);
 
       input.model(model);
 
@@ -261,31 +266,6 @@ module.exports = function({ _, ai, config }){
    }
 
 
-   llm.run = async function(args){
-
-      // return round_trip_test({ model: ai.models().get("gpt-4"), text: "this is a test message." });
-
-      const { model, input } = await handle_options(args);
-
-      if(input.is_empty()){ return _.stdout("empty prompt. canceling."); }
-
-      // return debug({ model, messages });
-
-      await do_llm({ model, input });
-   };
-
-   llm.help = function(no_exit){
-
-      _.print("usage: llm <model | alias | cont> [<helper_name> [prompt]]");
-      _.print("helpers: ", _helpers.help());
-      _.print("aliases: ", _.format.pretty_obj(ai.models().help().aliases));
-      _.print("models: ", _.format.pretty_obj(ai.models().help().models));
-      _.print("helpers: ", _helpers.help());
-
-      if(no_exit){ return; }
-
-      process.exit(1);
-   };
 
    ai.register(llm);
 };

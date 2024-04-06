@@ -37,6 +37,7 @@ module.exports = function({ _, ai, config }){
    };
 
    models.help = _cmds.help = function(){ _.print("usage: models [stats]"); };
+   models.description = function(args){ return("allows management and info about the AI models available to you in this program."); };
 
    ai.register(models);
 };

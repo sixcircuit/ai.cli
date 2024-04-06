@@ -11,5 +11,7 @@ module.exports = function({ _, ai, config }){
       _.print("usage: test <cmd>");
    };
 
+   test.description = function(args){ return("provides testing functions."); };
+
    ai.register(test);
 };
