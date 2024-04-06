@@ -1,6 +1,8 @@
 
 = todo
 
+   - fzf coming along. finish it. put comment into editor that shows model version and helper
+
    - figure out history and how you manage old model versions. pin = true on the history.
 
    - look into seamless meta model on hugging face. it's text to voice.
@@ -16,18 +18,6 @@
       x max i/o cost (get output tokens)
       x models.base() === base models, no aliases
       x `ai models`
-
-   = _.fzf.loop = async function(parts){
-         await _.each.a([], )
-
-      }
-      await _.fzf.loop([function(){
-
-      }, function(){
-
-      }])
-      ai.run(["llm"]);
-      llm.fzf = 2; // model name + helper (just hit enter in fzf for default helper. just order them properly)
 
 - Log directory for aicli. Log/LLM/[iso_date] have a log.write
 - make a model base with .stream(messages) (include vision messages and check for vision: true)
