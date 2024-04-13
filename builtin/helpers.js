@@ -14,7 +14,19 @@ function helpers_class(){
    this._helpers = helpers;
 }
 
-helpers_class.prototype.get = function(key){ return _.resolve_alias(this._helpers, key); };
+helpers_class.prototype.get = function(key){
+
+   const helper = _.resolve_alias(this._helpers, key);
+
+   if(!helper){ return(null); }
+
+   function anon(...args){ return helper(...args); };
+
+   _.assign(anon, helper, { key });
+
+   return(anon);
+};
+
 helpers_class.prototype.add = function(helpers){ this._helpers = _.merge(this._helpers, helpers); };
 helpers_class.prototype.help = function(){ return JSON.stringify(Object.keys(this._helpers)); }
 helpers_class.prototype.list = function(){

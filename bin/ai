@@ -1,31 +1,10 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-
 const _ = require("../lib/_.js");
 
-const proj_root = function(...path){ return(_.path.resolve(__dirname + "/../" + path.join("/"))); }
-
-const config = get_config();
-
-const ai = require("../lib/ai.js")(config);
-
-function get_config(){
-   const config = _.merge(require(_.path.join(process.env.HOME, ".config/ai/config.js")));
-
-   const builtin_root = proj_root("./builtin/");
-
-   const files = fs.readdirSync(builtin_root);
-
-   _.each.s(files, function(path){
-      path = _.path.join(builtin_root, path);
-      config.plugins.unshift(path);
-   });
-
-   return(config);
-}
-
 (async function(){
+
+   const ai = require("../lib/ai.js").load();
 
    const args = process.argv.slice(2);
 

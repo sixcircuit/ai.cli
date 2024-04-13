@@ -1,6 +1,8 @@
 
 module.exports = function({ _, ai, config }){
 
+   const fs = require("fs");
+
    const _convo = require("../lib/convo.js");
    const _helpers = require("./helpers.js")();
 
@@ -17,18 +19,19 @@ module.exports = function({ _, ai, config }){
 
       // return round_trip_test({ model: ai.models().get("gpt-4"), text: "this is a test message." });
 
-      const { model, input, cancel } = await handle_options(args);
+      const { model, input, cancel, output_path, wait } = await handle_options(args);
 
       if(cancel){ return; }
 
       // return debug({ model, messages });
 
-      await do_llm({ model, input });
+      await do_llm({ model, input, output_path, wait });
+
    };
 
    llm.help = function(no_exit){
 
-      _.print("usage: llm <model | alias | cont> [<helper_name> [prompt]]");
+      _.print("usage: llm [--wait] [--output <path>] <model | alias | continue> [<helper_name> [prompt]]");
       _.print("helpers: ", _helpers.help());
       _.print("aliases: ", _.format.pretty_obj(ai.models().help().aliases));
       _.print("models: ", _.format.pretty_obj(ai.models().help().models));
@@ -58,7 +61,7 @@ module.exports = function({ _, ai, config }){
    function show_stats({ stats }){
 
       _console.label({ color: "stats", label: "took: " });
-      _console.flush({ chunk: (stats.took + "ms") });
+      _console.flush({ chunk: _.format.duration_ms(stats.took) });
 
       _console.label({ color: "stats", label: "model: " });
       _console.flush({ chunk: stats.model.version });
@@ -128,12 +131,23 @@ module.exports = function({ _, ai, config }){
 
       // TODO: use dry.baseline _.os.copy once it's implemented;
       try{
-         await _.pbcopy(output.$format("text"));
-         _console.turn({ role: "info" });
-         _console.flush({ chunk: "(response was copied to the clipboard)", new_line: true });
+         await _.pbcopy(output.$format("text", { no_role: true }));
+         _console.label({ role: "info" });
+         _console.flush({ chunk: "response was copied to the clipboard" });
       }catch(err){
-         _console.turn({ role: "error" });
-         _console.flush({ chunk: "(error copying to clipboard. you're probably on a platform without pbcopy. feel free to open a pull request to support your platform.)", new_line: true });
+         _console.label({ role: "error" });
+         _console.flush({ chunk: "error copying to clipboard. you're probably on a platform without pbcopy. feel free to open a pull request to support your platform." });
+      }
+   }
+
+   async function copy_to_file({ path, output }){
+      try{
+         fs.writeFileSync(path, output.$format("text", { no_role: true }));
+         _console.label({ role: "info" });
+         _console.flush({ chunk: `wrote output to: ${path}` });
+      }catch(err){
+         _console.label({ role: "error" });
+         _console.flush({ chunk: `error writing to file: ${path}: ${err.message}` });
       }
    }
 
@@ -141,7 +155,7 @@ module.exports = function({ _, ai, config }){
 
    }
 
-   async function do_llm({ model, input, request }){
+   async function do_llm({ model, input, output_path, wait, request }){
       const start = Date.now();
 
       _console.reset({ wrap: 80, labels: ["user: ", "system: ", model.label()], padding: 1, right: true });
@@ -164,10 +178,24 @@ module.exports = function({ _, ai, config }){
 
       show_warnings({ model, stats });
 
+      _console.new_line();
+      _console.new_line();
+
+      if(output_path){ await copy_to_file({ path: output_path, output }); }
+
       await copy_to_clipboard({ output });
 
-      _console.ensure_new_line();
       _console.new_line();
+
+      if(wait){
+         _console.turn({ role: "info" });
+         _console.flush({ chunk: "press any key to continue...\n\n", new_line: true });
+         await _.wait_keypress();
+      }else{
+         _console.ensure_new_line();
+         _console.new_line();
+      }
+
 
       _console.flush();
    }
@@ -208,10 +236,23 @@ module.exports = function({ _, ai, config }){
 
    async function handle_options(argv){
 
-      const cmd = argv.shift();
+      let cmd = argv.shift();
+      let output_path;
+      let wait = false;
+
 
       if(cmd === "help"){ return llm.help(); }
       if(cmd === "continue"){ _.fatal("continue not implemented"); }
+
+      if(cmd === "--wait"){
+         wait = true;
+         cmd = argv.shift();
+      }
+
+      if(cmd === "--output"){
+         output_path = argv.shift();
+         cmd = argv.shift();
+      }
 
       const model = await get_model(cmd);
 
@@ -224,7 +265,14 @@ module.exports = function({ _, ai, config }){
 
       if(argv.length){ prompt = argv.join(" ").trim(); }
 
-      if(!prompt){ prompt = await ai.open_editor({ text: helper().$format("comments") }); }
+      let comments = [
+         `// model: ${ model.version() }`,
+         `// helper: ${ helper.key }`,
+      ].join("\n");
+
+      comments += helper().$format("comments");
+
+      if(!prompt){ prompt = await ai.open_editor({ text: comments }); }
 
       if(!prompt){
          _.stdout("empty prompt. not lemming.");
@@ -235,7 +283,7 @@ module.exports = function({ _, ai, config }){
 
       input.model(model);
 
-      return({ model, input });
+      return({ model, input, output_path, wait });
    }
 
 
@@ -264,8 +312,6 @@ module.exports = function({ _, ai, config }){
       _.print(`text.out: "`, str_out, `"`);
       _.print("price.out: ", model.price.text_out(str_out));
    }
-
-
 
    ai.register(llm);
 };
