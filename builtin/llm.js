@@ -4,7 +4,7 @@ module.exports = function({ _, ai, config }){
    const fs = require("fs");
 
    const _convo = require("../lib/convo.js");
-   const _helpers = require("./helpers.js")();
+   const _helpers = require("../lib/helpers.js")();
 
    const _console = ai.console();
 
@@ -78,8 +78,8 @@ module.exports = function({ _, ai, config }){
 
    function make_stats({ start, end, input, output, model }){
 
-      const input_stats = input.tokenize();
-      const output_stats = output.tokenize();
+      const input_stats = model.tokenize(input);
+      const output_stats = model.tokenize(output);
 
       function _stat(s, io){
          return({
@@ -153,7 +153,29 @@ module.exports = function({ _, ai, config }){
 
    function save_history({ input, output, stats, model }){
 
-   }
+      let history = { sessions: [] };
+
+      const history_root = ai.config_root("llm/");
+      const history_path = ai.config_root("llm/history.js");
+
+      try{
+         history = require(history_path);
+      }catch(e){
+         if(e.code = "MODULE_NOT_FOUND"){ fs.mkdirSync(history_root, { recursive: true }); }
+         else{ throw(e); }
+      }
+
+      // console.log("model");
+      // console.dir(model);
+      const whole_convo = input.copy();
+      whole_convo.model(model.key());
+      whole_convo.add(output.messages());
+      whole_convo.timestamps().push(output.timestamps()[0]);
+
+      history.sessions.unshift(whole_convo.$out());
+
+      fs.writeFileSync(history_path, "module.exports = " + _.stringify(history));
+   };
 
    async function do_llm({ model, input, output_path, wait, request }){
       const start = Date.now();
@@ -161,8 +183,6 @@ module.exports = function({ _, ai, config }){
       _console.reset({ wrap: 80, labels: ["user: ", "system: ", model.label()], padding: 1, right: true });
 
       print_input({ input });
-
-      _console.new_line();
 
       const { output } = await stream_output({ input, model });
 
@@ -200,18 +220,18 @@ module.exports = function({ _, ai, config }){
       _console.flush();
    }
 
-   async function get_model(model_name){
+   async function get_model(model_key){
 
-      model_name = model_name || await _.fzf({ list: ai.models().list() });
+      model_key = model_key || await _.fzf({ list: ai.models().list() });
 
-      if(!model_name){ return _.null( _.stderr("model selection canceled. not lemming.") ); }
+      if(!model_key){ return _.null( _.stderr("model selection canceled. not lemming.") ); }
 
-      _.stderr("model name: ", _.quote(model_name));
+      _.stderr("model name: ", _.quote(model_key));
 
-      const model = ai.models().get(model_name);
+      const model = ai.models().get(model_key);
 
       if(!model){
-         _.stderr("unknown model type: ", model_name, " you must pick a model in the list below.");
+         _.stderr("unknown model type: ", model_key, " you must pick a model in the list below.");
          return _.null( llm.help() );
       }
 
@@ -272,7 +292,7 @@ module.exports = function({ _, ai, config }){
 
       comments += helper().$format("comments");
 
-      if(!prompt){ prompt = await ai.open_editor({ text: comments }); }
+      if(!prompt){ prompt = await ai.editor().open({ text: comments }); }
 
       if(!prompt){
          _.stdout("empty prompt. not lemming.");

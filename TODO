@@ -1,9 +1,14 @@
 
 = todo
 
-   - fzf coming along. finish it. put comment into editor that shows model version and helper
+   x fzf coming along. finish it. put comment into editor that shows model version and helper
 
    - figure out history and how you manage old model versions. pin = true on the history.
+
+   - build history saving
+   - build history loading
+      - "cont" = fzf
+   - figure out embedded vim whisper llm problem
 
    - look into seamless meta model on hugging face. it's text to voice.
 
